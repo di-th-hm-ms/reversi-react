@@ -4,11 +4,11 @@ import { size } from "./setting.ts";
 
 function Game(props) {
     const white = '○', black = '●';
-    // let occupiedCnt = 0;
     const [whiteCnt, setWhiteCnt] = useState(2);
     const [blackCnt, setBlackCnt] = useState(2);
-    const [oIsNext, setOIsNext] = useState(true);
-    const [cellsState, setCellsState] = useState(
+    // ['○', '●']
+    const [turnState, setTurnState] = useState([white]);
+    const [history, setHistory] = useState(
         () => {
             const res = [];
             for (let i=0;i<size;i++) {
@@ -18,9 +18,16 @@ function Game(props) {
             const m = size/2;
             res[m-1][m-1] = res[m][m] = white;
             res[m-1][m] = res[m][m-1] = black;
-            return res;
+            return [res];
         }
     )
+    // to have an index for turnState and history
+    const [step, setStep] = useState(0);
+    // This is for the state of the board for the current step
+    const [cellsState, setCellsState] = useState(history[step]);
+    //
+    const [prevrMovable, setPrevMovable] = useState(false);
+    const [shouldEnd, setShouldEnd] = useState(false);
 
     /**
      * certainly define who the next turn is.
@@ -29,7 +36,8 @@ function Game(props) {
         // If all stones are set in all places, this game is end.
         if (calcStones()) return;
 
-        document.title = `Next player is ${oIsNext ? white : black}`;
+        // set the title of the current tab with the next turn.
+        document.title = `Next player is ${turnState[step] ? white : black}`;
 
         // check if there is a place to set a stone.
         let movable = false;
@@ -40,24 +48,37 @@ function Game(props) {
             }
         }
 
+        // If no moves happen two times in a row, this game should end
+        if (!movable && !prevrMovable) {
+            setShouldEnd(true);
+            return;
+        }
+
         // If there's no place to set a stone, the player has to passes this turn.
         if (!movable) {
-            setOIsNext(!oIsNext);
+            console.log("can't move")
+            turnState[step] = turnState[step] === black ? white : black
+            setTurnState([...turnState]);
         }
-    }, [oIsNext]);
+
+        // to check no moves two times in a row.
+        setPrevMovable(movable);
+
+    }, [turnState]);
 
     /**
      * If the sum of both stones are the max after calculation, the outcome must be on display
      */
     useEffect(() => {
         let status: string = "";
-        if (whiteCnt + blackCnt === size * size) {
+        // stones are all set or either stone is out of stock
+        if (whiteCnt + blackCnt === size * size || whiteCnt * blackCnt === 0 || shouldEnd) {
             if (whiteCnt === blackCnt) status = "Draw";
             else if (whiteCnt < blackCnt) status = "Black";
             else status = "White";
         }
         document.title = status;
-    }, [whiteCnt, blackCnt]);
+    }, [whiteCnt, blackCnt, shouldEnd]);
 
     /**
      * how it handles when a cell is clicked.
@@ -80,7 +101,7 @@ function Game(props) {
      */
     const search = (x: number, y: number, flip: boolean) => {
         let ny: number, nx: number;
-        const currentTurn = oIsNext ? white : black;
+        const currentTurn = turnState[step] === white ? white : black;
         const tmp = cellsState.slice();
         const dxs = [-1,-1,-1,0,0,1,1,1], dys = [0,-1,1,-1,1,0,-1,1];
         let changed: boolean;
@@ -124,9 +145,13 @@ function Game(props) {
             }
             check = check || changed;
         }
+        // set whole of new states for the next turn.
         if (flip && check) {
-            setOIsNext(!oIsNext);
+            const next = currentTurn === white ? black : white;
+            setTurnState(prev => [...prev, next]);
+            setStep(step+1)
             setCellsState(tmp);
+            setHistory([...history, tmp])
         }
         return check;
     }
@@ -144,7 +169,10 @@ function Game(props) {
         }
         setWhiteCnt(wCnt);
         setBlackCnt(bCnt);
-        return wCnt + bCnt === size * size;
+        // let shouldEnd = false;
+        setShouldEnd(shouldEnd || (wCnt === 0 || bCnt === 0));
+        setShouldEnd(shouldEnd || wCnt + bCnt === size * size);
+        return shouldEnd;
     }
 
     return (
@@ -156,6 +184,7 @@ function Game(props) {
                 {/* <div>{status}</div> */}
                 <div>white {whiteCnt}</div>
                 <div>black {blackCnt}</div>
+                {/* <div><button>{</button></div> */}
             </div>
         </div>
     )
